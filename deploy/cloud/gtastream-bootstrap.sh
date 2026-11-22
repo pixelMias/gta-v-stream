@@ -1,29 +1,36 @@
 #!/usr/bin/env bash
-# GTA V Stream test server: one-time setup of a fresh Ubuntu 24.04 VM (x86_64 or arm64), run as root (via sudo).
+# GTA V Stream test server: one-time setup of an Ubuntu 24.04 VM (x86_64 or arm64), run as root via sudo.
 #
-#   scp deploy/cloud/bootstrap.sh plm@<IP>:
-#   ssh -t plm@<IP> sudo bash bootstrap.sh "<public deploy key>" [domain]
+#   scp deploy/cloud/gtastream-bootstrap.sh <server>:
+#   ssh -t <server> sudo bash gtastream-bootstrap.sh
 #
+# Optional arguments: [public deploy key] [domain]. Without a key the existing deploy user and its authorized_keys stay
+# as they are. Over ssh the key needs two layers of quotes: ssh -t <server> "sudo bash gtastream-bootstrap.sh 'ssh-ed25519 AAAA… name'"
 # Installs Postgres 16, the ASP.NET Core 8 runtime and Caddy (automatic HTTPS) from the Ubuntu archive, creates the users
 # gtastream (runs the EBS) and deploy (GitHub Actions uploads releases), the database, the systemd unit, the firewall
 # and a daily database backup. Without a domain the server is reachable at <ip-with-dashes>.sslip.io, which resolves to
-# the IP and gets a real certificate. Safe to run again: existing passwords, tokens and releases are kept.
+# the IP and gets a real certificate. This server belongs to GTA V Stream alone: /etc/caddy/Caddyfile is overwritten.
+# Safe to run again: existing passwords, tokens and releases are kept.
 set -euo pipefail
 
-DEPLOY_KEY="${1:?usage: bootstrap.sh \"<public deploy key>\" [domain]}"
+DEPLOY_KEY="${1:-}"
 IP=$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1)}')
 DOMAIN="${2:-${IP//./-}.sslip.io}"
 ROOT=/opt/gtastream
 ENVFILE=/etc/gtastream/env
 CADDYFILE=/etc/caddy/Caddyfile
-MARKER="# gtastream: written by deploy/cloud/bootstrap.sh"
+MARKER="# gtastream: written by deploy/cloud/gtastream-bootstrap.sh"
 export DEBIAN_FRONTEND=noninteractive
 
-# Do not overwrite a Caddyfile another project wrote (for example on a shared server).
-if [ -f "$CADDYFILE" ] && ! grep -qF "$MARKER" "$CADDYFILE" && ! grep -q "/usr/share/caddy" "$CADDYFILE"; then
-  echo "ABBRUCH: $CADDYFILE stammt von einem anderen Projekt. Bitte eigenen Server nehmen oder den Block von Hand ergaenzen." >&2
-  exit 1
-fi
+# Catch arguments that ssh split apart (key without quotes ends up as "ssh-ed25519" plus a "domain" AAAA…).
+case "$DEPLOY_KEY" in
+  ""|"ssh-ed25519 "*|"ssh-rsa "*|"ecdsa-"*" "*) ;;
+  *) echo "ABBRUCH: '$DEPLOY_KEY' ist kein ganzer oeffentlicher Schluessel. Ohne Argument aufrufen oder doppelt quoten (siehe Kopf)." >&2; exit 1 ;;
+esac
+case "$DOMAIN" in
+  *.*) ;;
+  *) echo "ABBRUCH: '$DOMAIN' ist keine Domain." >&2; exit 1 ;;
+esac
 
 echo "== Pakete"
 apt-get update -q
@@ -37,7 +44,12 @@ echo "== Benutzer und Verzeichnisse"
 id gtastream >/dev/null 2>&1 || useradd --system --home "$ROOT" --shell /usr/sbin/nologin gtastream
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/bash deploy
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-grep -qxF "$DEPLOY_KEY" /home/deploy/.ssh/authorized_keys 2>/dev/null || echo "$DEPLOY_KEY" >> /home/deploy/.ssh/authorized_keys
+if [ -n "$DEPLOY_KEY" ]; then
+  grep -qxF "$DEPLOY_KEY" /home/deploy/.ssh/authorized_keys 2>/dev/null || echo "$DEPLOY_KEY" >> /home/deploy/.ssh/authorized_keys
+fi
+if ! grep -q '^ssh-[a-z0-9]* AAAA' /home/deploy/.ssh/authorized_keys 2>/dev/null && ! grep -q '^ecdsa-' /home/deploy/.ssh/authorized_keys 2>/dev/null; then
+  echo "ABBRUCH: deploy hat noch keinen Schluessel. Den oeffentlichen Teil von DEPLOY_SSH_KEY als Argument mitgeben." >&2; exit 1
+fi
 chown deploy:deploy /home/deploy/.ssh/authorized_keys; chmod 600 /home/deploy/.ssh/authorized_keys
 install -d -m 755 -o deploy -g deploy "$ROOT" "$ROOT/releases" "$ROOT/incoming"
 install -d -m 755 "$ROOT/bin" /etc/gtastream
@@ -108,6 +120,7 @@ $DOMAIN {
 }
 EOF
 chown root:caddy "$CADDYFILE"; chmod 640 "$CADDYFILE"
+caddy validate --config "$CADDYFILE" --adapter caddyfile >/dev/null
 
 # Activation script for the deploy user: unpack, switch, restart, check health, roll back on failure.
 cat > "$ROOT/bin/activate" <<'EOF'
