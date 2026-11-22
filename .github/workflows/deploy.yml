@@ -75,5 +75,11 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          scp -q "$GITHUB_SHA.tar.gz" "deploy@$DEPLOY_HOST:/opt/gtastream/incoming/"
+          if ! ssh -o BatchMode=yes "deploy@$DEPLOY_HOST" true; then
+            echo "::error::SSH als deploy klappt nicht (Schluessel, authorized_keys oder DEPLOY_KNOWN_HOSTS pruefen)."; exit 1
+          fi
+          if ! ssh "deploy@$DEPLOY_HOST" test -x /opt/gtastream/bin/activate; then
+            echo "::error::Server nicht eingerichtet: /opt/gtastream/bin/activate fehlt. Einmal deploy/cloud/bootstrap.sh ausfuehren."; exit 1
+          fi
+          scp "$GITHUB_SHA.tar.gz" "deploy@$DEPLOY_HOST:/opt/gtastream/incoming/"
           ssh "deploy@$DEPLOY_HOST" /opt/gtastream/bin/activate "$GITHUB_SHA"

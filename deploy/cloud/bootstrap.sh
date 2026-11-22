@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# GTA V Stream test server: one-time setup of a fresh Ubuntu 24.04 VM (x86_64 or arm64), run as root.
+# GTA V Stream test server: one-time setup of a fresh Ubuntu 24.04 VM (x86_64 or arm64), run as root (via sudo).
 #
-#   ssh root@<IP> 'bash -s' < deploy/cloud/bootstrap.sh "<public deploy key>" [domain]
+#   scp deploy/cloud/bootstrap.sh plm@<IP>:
+#   ssh -t plm@<IP> sudo bash bootstrap.sh "<public deploy key>" [domain]
 #
 # Installs Postgres 16, the ASP.NET Core 8 runtime and Caddy (automatic HTTPS) from the Ubuntu archive, creates the users
 # gtastream (runs the EBS) and deploy (GitHub Actions uploads releases), the database, the systemd unit, the firewall

@@ -31,8 +31,9 @@ Endpunkte:
 - `GET /api/health` → `{"status":"ok","commit":"<sha>","startedAt":"…","db":"ok|down|off"}`
 - `GET /api/logs?limit=200&level=Warning&after=<id>` mit Header `X-Admin-Token` → die neuesten Logzeilen aus dem Speicher (Token steht in `/etc/gtastream/env`).
 
-Einmalige Einrichtung (nur root):
+Einmalige Einrichtung (Benutzer mit sudo, root-Login ist aus):
 
 ```
-ssh root@<IP> 'bash -s' < deploy/cloud/bootstrap.sh "<öffentlicher Deploy-Schlüssel>"
+scp deploy/cloud/bootstrap.sh plm@<IP>:
+ssh -t plm@<IP> sudo bash bootstrap.sh "<öffentlicher Deploy-Schlüssel>"
 ```
