@@ -107,6 +107,7 @@ public sealed class StudioHub
                     ["type"] = "intervention",
                     ["id"] = p.Id.ToString(),
                     ["eventId"] = p.Event.Id,
+                    ["eventName"] = p.Event.Name,
                     ["category"] = Catalog.CategoryKey(p.Event.Category),
                     ["durationSec"] = p.Event.DurationSec,
                     ["viewer"] = p.ViewerName,

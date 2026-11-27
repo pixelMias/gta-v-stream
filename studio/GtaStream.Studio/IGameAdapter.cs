@@ -19,14 +19,23 @@ public interface IGameAdapter
     /// <summary>Checks whether the effect fits the moment; null = accepted, otherwise a reason such as not_in_vehicle.</summary>
     string? Check(string effectId);
 
-    /// <summary>Starts the effect; the mod reverts timed effects on its own, even if the studio host dies.</summary>
-    Task<EffectOutcome> Run(string effectId, int durationSec, string viewer, CancellationToken ct);
+    /// <summary>
+    /// Starts the effect; the mod reverts timed effects on its own, even if the studio host dies. Strength above 1 means
+    /// several viewers bought the same thing at once and the director bundled them ("3 hackers burst the tyres").
+    /// </summary>
+    Task<EffectOutcome> Run(string effectId, int durationSec, int strength, string viewer, CancellationToken ct);
 
     /// <summary>Panic button: stop every effect at once.</summary>
     Task StopAll();
 }
 
-public sealed record GameState(bool Connected, bool InVehicle, int WantedLevel, bool Cutscene, bool Paused, string Mode);
+/// <summary>
+/// Mode: "autopilot" (AI drives), "copilot" (a human drives, the AI comments), "pause" (nobody, no events),
+/// "quiet" (night mode, AI drives with fewer decisions). Concept, section 4a.
+/// </summary>
+public sealed record GameState(
+    bool Connected, bool InVehicle, int WantedLevel, bool Cutscene, bool Paused, string Mode,
+    double SpeedKmh = 0, int HealthPct = 100, bool MissionActive = false, bool Loading = false);
 
 public sealed record EffectOutcome(bool Ok, string? Reason = null);
 
@@ -45,7 +54,7 @@ public sealed class FakeAdapter : IGameAdapter
         "slow_motion", "tpose_anomaly", "heal", "vehicle_fix", "wanted_clear",
     };
 
-    public GameState State => new(true, _inVehicle, 0, false, false, "autopilot");
+    public GameState State => new(true, _inVehicle, 0, false, false, "autopilot", SpeedKmh: _inVehicle ? 80 : 6, HealthPct: 90);
 
     public string? Check(string effectId)
     {
@@ -53,9 +62,9 @@ public sealed class FakeAdapter : IGameAdapter
         return !_inVehicle && VehicleEffects.Contains(effectId) ? "not_in_vehicle" : null;
     }
 
-    public async Task<EffectOutcome> Run(string effectId, int durationSec, string viewer, CancellationToken ct)
+    public async Task<EffectOutcome> Run(string effectId, int durationSec, int strength, string viewer, CancellationToken ct)
     {
-        Console.WriteLine($"[spiel] {effectId} für {viewer}{(durationSec > 0 ? $", {durationSec} s" : "")}");
+        Console.WriteLine($"[spiel] {effectId} für {viewer}{(strength > 1 ? $", Stärke {strength}" : "")}{(durationSec > 0 ? $", {durationSec} s" : "")}");
         await Task.Delay(200, ct);
         return new EffectOutcome(true);
     }

@@ -178,7 +178,8 @@ function Shop({ catalog, balance, onBuy }: { catalog: CatalogView | null; balanc
       </div>
       <ul class="events">
         {events.map((e) => {
-          const wait = Math.max(e.cooldownSec, e.viewerCooldownSec) - elapsed;
+          const join = e.joinable && elapsed < 15 && e.viewerCooldownSec - elapsed <= 0;
+          const wait = join ? 0 : Math.max(e.cooldownSec, e.viewerCooldownSec) - elapsed;
           const disabled = !e.available || wait > 0 || balance < e.price;
           return (
             <li class={`event ${e.category}`}>
@@ -187,13 +188,13 @@ function Shop({ catalog, balance, onBuy }: { catalog: CatalogView | null; balanc
                 <span class="muted small">{e.description}</span>
               </div>
               <button class="buy" disabled={disabled} onClick={() => onBuy(e)}>
-                {!e.available ? 'n. v.' : wait > 0 ? fmt(wait) : `${e.price} HC`}
+                {!e.available ? 'n. v.' : wait > 0 ? fmt(wait) : join ? `Dabei! ${e.price}` : `${e.price} HC`}
               </button>
             </li>
           );
         })}
       </ul>
-      <p class="muted small">Beliebte Eingriffe werden für 10 Minuten teurer. Was die Regie nicht unterbringt, wird erstattet.</p>
+      <p class="muted small">Beliebte Eingriffe werden für 10 Minuten teurer. Wer binnen 20 s dasselbe kauft, macht mit: die Regie bündelt es zu einem stärkeren Eingriff. Was sie nicht unterbringt, wird erstattet.</p>
     </section>
   );
 }

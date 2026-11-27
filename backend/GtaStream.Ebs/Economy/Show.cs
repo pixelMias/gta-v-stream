@@ -42,6 +42,8 @@ public sealed class Show
     /// <summary>Concept: the director holds an intervention up to 60 s; add time for transport and execution.</summary>
     public static readonly TimeSpan QueueTimeout = TimeSpan.FromSeconds(90);
     public static readonly TimeSpan PriceWindow = TimeSpan.FromMinutes(10);
+    /// <summary>How long after a purchase others can join the same intervention despite the event cooldown.</summary>
+    public static readonly TimeSpan JoinWindow = TimeSpan.FromSeconds(20);
     public const double PriceStep = 0.15;
 
     private readonly object _lock = new();
@@ -216,6 +218,8 @@ public sealed class Show
                     durationSec = e.DurationSec,
                     available = caps?.Contains(e.Id) == true,
                     cooldownSec = Remaining(_eventLast.TryGetValue((v.ChannelId, e.Id), out var t) ? t : null, TimeSpan.FromSeconds(e.CooldownSec), Now),
+                    joinable = _purchases.Values.Any(o => o.ChannelId == v.ChannelId && o.Event.Id == e.Id &&
+                        o.State is PurchaseState.Queued or PurchaseState.Accepted && Now - o.CreatedAt <= JoinWindow),
                     viewerCooldownSec = Remaining(_viewerEventLast.TryGetValue((v.ChannelId, v.Account, e.Id), out var u) ? u : null, TimeSpan.FromSeconds(e.ViewerCooldownSec), Now),
                 }),
             };
@@ -237,7 +241,11 @@ public sealed class Show
             var wait = Remaining(_lastPurchase.TryGetValue(key, out var lp) ? lp : null, PurchaseGap, Now);
             if (wait > 0) return new ApiError(429, "rate_limited", "Nicht so schnell, Hacker.", wait);
             wait = Remaining(_eventLast.TryGetValue((v.ChannelId, e.Id), out var el) ? el : null, TimeSpan.FromSeconds(e.CooldownSec), Now);
-            if (wait > 0) return new ApiError(409, "event_cooldown", $"{e.Name} lädt noch nach.", wait);
+            // Within 20 s of a purchase that has not run yet, others may join it: the director bundles them into one
+            // stronger intervention (concept: "3 Hacker legen gleichzeitig die Reifen lahm").
+            var joins = wait > 0 && _purchases.Values.Any(o => o.ChannelId == v.ChannelId && o.Event.Id == e.Id &&
+                o.State is PurchaseState.Queued or PurchaseState.Accepted && Now - o.CreatedAt <= JoinWindow);
+            if (wait > 0 && !joins) return new ApiError(409, "event_cooldown", $"{e.Name} lädt noch nach.", wait);
             wait = Remaining(_viewerEventLast.TryGetValue((v.ChannelId, v.Account, e.Id), out var ve) ? ve : null, TimeSpan.FromSeconds(e.ViewerCooldownSec), Now);
             if (wait > 0) return new ApiError(409, "viewer_cooldown", $"Du hast {e.Name} gerade erst ausgelöst.", wait);
 
@@ -248,7 +256,7 @@ public sealed class Show
             Book(v.ChannelId, v.Account, -price, LedgerKind.Purchase, p.Id.ToString(), e.Id);
             _purchases[p.Id] = p;
             _lastPurchase[key] = Now;
-            _eventLast[(v.ChannelId, e.Id)] = Now;
+            if (!joins) _eventLast[(v.ChannelId, e.Id)] = Now;
             _viewerEventLast[(v.ChannelId, v.Account, e.Id)] = Now;
             _log.LogInformation("Kauf {Purchase}: {Event} für {Price} von {Name}", p.Id, e.Id, price, v.Name);
             return new { purchase = View(p), position = QueuePosition(p), balance = _balances[key] };

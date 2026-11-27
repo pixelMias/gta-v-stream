@@ -134,6 +134,8 @@ export type CatalogEvent = {
   durationSec: number;
   available: boolean;
   cooldownSec: number;
+  /** Someone bought it seconds ago and it has not run yet: buying now joins in and makes it stronger. */
+  joinable: boolean;
   viewerCooldownSec: number;
 };
 

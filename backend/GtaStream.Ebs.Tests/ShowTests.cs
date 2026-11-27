@@ -115,7 +115,10 @@ public class ShowTests
         Assert.Equal("event_unknown", Assert.IsType<ApiError>(show.Buy(Anna, "nope")).Code);
         Assert.IsNotType<ApiError>(show.Buy(Anna, "confetti"));
         Assert.Equal("rate_limited", Assert.IsType<ApiError>(show.Buy(Anna, "weather_storm")).Code);
-        Assert.Equal("event_cooldown", Assert.IsType<ApiError>(show.Buy(Ben, "confetti")).Code);
+        Assert.IsNotType<ApiError>(show.Buy(Ben, "confetti"));   // joins Anna's purchase within 20 s
+        _time.Advance(Show.JoinWindow + TimeSpan.FromSeconds(1));
+        var carl = new Viewer("dev", "Ucarl", null, "viewer", "Carl", true);
+        Assert.Equal("event_cooldown", Assert.IsType<ApiError>(show.Buy(carl, "confetti")).Code);
         Assert.Equal("shop_closed", Assert.IsType<ApiError>(NewShow(open: false).Buy(Ben, "confetti")).Code);
     }
 

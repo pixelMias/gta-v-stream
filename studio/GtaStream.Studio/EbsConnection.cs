@@ -1,15 +1,16 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
+using GtaStream.Studio.Director;
 
 namespace GtaStream.Studio;
 
 /// <summary>
 /// Outbound connection to the EBS (docs/studio-protokoll.md). Reconnects with backoff, sends hello and the game state
-/// every 2 s, and answers every intervention with ack and result. The director (pacing, bundling) will sit between
-/// receiving and running; for now each intervention runs after a short fixed pause.
+/// every 2 s, and hands every intervention to the showrunner, which answers with ack right away and decides when it
+/// runs; its results go back as "result".
 /// </summary>
-public sealed class EbsConnection(Uri url, string token, IGameAdapter game)
+public sealed class EbsConnection(Uri url, string token, IGameAdapter game, Showrunner director)
 {
     private ClientWebSocket? _socket;
     private readonly SemaphoreSlim _send = new(1, 1);
@@ -36,6 +37,8 @@ public sealed class EbsConnection(Uri url, string token, IGameAdapter game)
                 }, stop);
 
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(stop);
+                director.ReportResult = (id, ok, reason) =>
+                    Send(new JsonObject { ["type"] = "result", ["id"] = id, ["ok"] = ok, ["reason"] = reason }, cts.Token);
                 var stateLoop = StateLoop(cts.Token);
                 await ReceiveLoop(socket, cts.Token);
                 cts.Cancel();
@@ -61,8 +64,12 @@ public sealed class EbsConnection(Uri url, string token, IGameAdapter game)
 
     private async Task StateLoop(CancellationToken ct)
     {
+        var n = 0;
         while (!ct.IsCancellationRequested)
         {
+            // The director ticks twice a second; the state goes to the EBS every 2 s.
+            await director.Tick(ct);
+            if (n++ % 4 != 0) { await Task.Delay(TimeSpan.FromMilliseconds(500), ct); continue; }
             var s = game.State;
             await Send(new JsonObject
             {
@@ -72,7 +79,7 @@ public sealed class EbsConnection(Uri url, string token, IGameAdapter game)
                     ["inVehicle"] = s.InVehicle, ["wanted"] = s.WantedLevel, ["cutscene"] = s.Cutscene, ["paused"] = s.Paused, ["mode"] = s.Mode,
                 },
             }, ct);
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
         }
     }
 
@@ -93,10 +100,10 @@ public sealed class EbsConnection(Uri url, string token, IGameAdapter game)
             switch ((string?)msg["type"])
             {
                 case "intervention":
-                    _ = Handle(msg, ct);
+                    await Handle(msg, ct);
                     break;
                 case "panic":
-                    await game.StopAll();
+                    await director.Panic();
                     break;
                 case "welcome":
                     Console.WriteLine($"[ebs] Kanal {(string?)msg["channelId"]}");
@@ -110,15 +117,15 @@ public sealed class EbsConnection(Uri url, string token, IGameAdapter game)
 
     private async Task Handle(JsonObject msg, CancellationToken ct)
     {
-        var id = (string)msg["id"]!;
-        var effect = (string)msg["eventId"]!;
-        var viewer = (string?)msg["viewer"] ?? "?";
-        var reason = game.Check(effect);
-        await Send(new JsonObject { ["type"] = "ack", ["id"] = id, ["accepted"] = reason is null, ["reason"] = reason }, ct);
-        if (reason is not null) return;
-        await Task.Delay(TimeSpan.FromSeconds(2), ct);   // stand-in for the director's timing
-        var outcome = await game.Run(effect, (int?)msg["durationSec"] ?? 0, viewer, ct);
-        await Send(new JsonObject { ["type"] = "result", ["id"] = id, ["ok"] = outcome.Ok, ["reason"] = outcome.Reason }, ct);
+        var i = new Intervention(
+            (string)msg["id"]!, (string)msg["eventId"]!, (string?)msg["eventName"] ?? (string)msg["eventId"]!,
+            (string?)msg["category"] ?? "harmless", (int?)msg["durationSec"] ?? 0, (string?)msg["viewer"] ?? "?",
+            (int?)msg["price"] ?? 0, msg["createdAt"]?.GetValue<DateTimeOffset>() ?? DateTimeOffset.UtcNow,
+            msg["deadline"]?.GetValue<DateTimeOffset>() ?? DateTimeOffset.UtcNow.AddSeconds(60));
+        var decision = await director.Offer(i);
+        if (decision is null) return;   // already known
+        if (!decision.Accepted) Console.WriteLine($"[regie] {i.EventId} von {i.Viewer} abgelehnt: {decision.Reason}");
+        await Send(new JsonObject { ["type"] = "ack", ["id"] = i.Id, ["accepted"] = decision.Accepted, ["reason"] = decision.Reason }, ct);
     }
 
     private async Task Send(JsonObject msg, CancellationToken ct)

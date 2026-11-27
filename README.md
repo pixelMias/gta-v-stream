@@ -9,8 +9,9 @@ Asymmetrisches Twitch-Extension-Spiel zu GTA V. Zuschauer sammeln in der Extensi
 | `backend/GtaStream.Ebs` | Extension Backend Service (C# ASP.NET Core 8) mit PostgreSQL |
 | `backend/GtaStream.Ebs.Tests` | xUnit-Tests |
 | `extension` | Extension-Frontend (TypeScript, Preact, Vite) |
-| `studio/GtaStream.Studio` | Studio-Host auf dem Stream-PC, bisher nur Verbindung zum EBS mit Fake-Spiel |
-| `docs/studio-protokoll.md` | Protokoll zwischen EBS und Studio-Host |
+| `studio/GtaStream.Studio` | Studio-Host auf dem Stream-PC: Verbindung zum EBS und Regie (Showrunner), Spielseite noch Fake |
+| `studio/GtaStream.Studio.Tests` | xUnit-Tests der Regie |
+| `docs/studio-protokoll.md` | Protokoll zwischen EBS und Studio-Host, Regeln der Regie |
 | `deploy/cloud/gtastream-bootstrap.sh` | Einmalige Einrichtung des Testservers (siehe unten) |
 
 ## Was die Extension kann (Stand 27.11.2026)
