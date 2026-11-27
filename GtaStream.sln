@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GtaStream.Ebs", "backend\Gt
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GtaStream.Ebs.Tests", "backend\GtaStream.Ebs.Tests\GtaStream.Ebs.Tests.csproj", "{8F75F3BA-A4BF-453D-9364-7085E6666407}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "studio", "studio", "{87D433CD-06E6-4DAD-80C5-1C2D80F11BC2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GtaStream.Studio", "studio\GtaStream.Studio\GtaStream.Studio.csproj", "{3BA2609F-D4B5-4161-8111-9AAB8577D9EE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +30,14 @@ Global
 		{8F75F3BA-A4BF-453D-9364-7085E6666407}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F75F3BA-A4BF-453D-9364-7085E6666407}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F75F3BA-A4BF-453D-9364-7085E6666407}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3BA2609F-D4B5-4161-8111-9AAB8577D9EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3BA2609F-D4B5-4161-8111-9AAB8577D9EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3BA2609F-D4B5-4161-8111-9AAB8577D9EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3BA2609F-D4B5-4161-8111-9AAB8577D9EE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{BBF1972B-32A3-47D3-B87F-DF120A1BBD67} = {BF2B57D3-2E6C-4C88-B503-7AD86854ACE5}
 		{8F75F3BA-A4BF-453D-9364-7085E6666407} = {BF2B57D3-2E6C-4C88-B503-7AD86854ACE5}
+		{3BA2609F-D4B5-4161-8111-9AAB8577D9EE} = {87D433CD-06E6-4DAD-80C5-1C2D80F11BC2}
 	EndGlobalSection
 EndGlobal

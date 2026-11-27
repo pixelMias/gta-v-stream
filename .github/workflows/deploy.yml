@@ -17,6 +17,17 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GTASTREAM_TEST_DB: Host=localhost;Username=test;Password=test;Database=test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -31,7 +42,7 @@ jobs:
           cache-dependency-path: extension/package-lock.json
       - name: extension build
         working-directory: extension
-        run: npm ci && npm run build
+        run: npm ci && npm test && npm run build
 
   deploy:
     needs: test
