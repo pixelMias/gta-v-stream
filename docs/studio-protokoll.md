@@ -83,3 +83,16 @@ Code entscheidet, ob und wann; das LLM nur, wie es erzählt wird (Konzept, Absch
    als `director_hold_timeout`, das EBS erstattet.
 
 Bezahlte Eingriffe werden nur verzögert, nie durch etwas anderes ersetzt.
+
+## Overlay (Studio-Host → OBS)
+
+Der Studio-Host öffnet auf `GTASTREAM_OVERLAY_URL` (Standard `http://127.0.0.1:7780`, nur lokal) eine Seite für die
+OBS-Browserquelle und den WebSocket `/ws`. Nachrichten (JSON, `type`):
+
+| type | Felder | Bedeutung |
+|---|---|---|
+| `status` | `mode`, `ebsConnected`, `tension`, `target`, `phase`, `queue` | jede Sekunde: Wer steuert, Spannung gegen Zielkurve |
+| `banner` | `text`, `category` | ein Eingriff läuft, Banner 5 s, höchstens 3 gleichzeitig |
+| `say` | `text`, `audio` (oder null) | Untertitel; `audio` ist `/audio/<id>` (MP3 von ElevenLabs oder WAV von Piper, die letzten 20 bleiben abrufbar) |
+
+Die Seite spielt Audio nacheinander ab und verbindet sich nach einem Abbruch neu.

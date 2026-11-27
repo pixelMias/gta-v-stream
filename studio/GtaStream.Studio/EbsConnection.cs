@@ -13,6 +13,8 @@ namespace GtaStream.Studio;
 public sealed class EbsConnection(Uri url, string token, IGameAdapter game, Showrunner director)
 {
     private ClientWebSocket? _socket;
+
+    public bool IsConnected => _socket is { State: WebSocketState.Open };
     private readonly SemaphoreSlim _send = new(1, 1);
 
     public async Task RunForever(CancellationToken stop)

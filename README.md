@@ -9,7 +9,7 @@ Asymmetrisches Twitch-Extension-Spiel zu GTA V. Zuschauer sammeln in der Extensi
 | `backend/GtaStream.Ebs` | Extension Backend Service (C# ASP.NET Core 8) mit PostgreSQL |
 | `backend/GtaStream.Ebs.Tests` | xUnit-Tests |
 | `extension` | Extension-Frontend (TypeScript, Preact, Vite) |
-| `studio/GtaStream.Studio` | Studio-Host auf dem Stream-PC: Verbindung zum EBS und Regie (Showrunner), Spielseite noch Fake |
+| `studio/GtaStream.Studio` | Studio-Host auf dem Stream-PC: Verbindung zum EBS, Regie (Showrunner), OBS-Overlay und Stimme; Spielseite noch Fake |
 | `studio/GtaStream.Studio.Tests` | xUnit-Tests der Regie |
 | `docs/studio-protokoll.md` | Protokoll zwischen EBS und Studio-Host, Regeln der Regie |
 | `deploy/cloud/gtastream-bootstrap.sh` | Einmalige Einrichtung des Testservers (siehe unten) |
@@ -33,6 +33,25 @@ Asymmetrisches Twitch-Extension-Spiel zu GTA V. Zuschauer sammeln in der Extensi
 dotnet run --project backend/GtaStream.Ebs          # EBS auf 127.0.0.1:5090, ohne GTASTREAM_DB im Speicher
 (cd extension && npm ci && npm run dev)             # http://localhost:5173, /api wird zum EBS weitergeleitet
 ```
+
+## Studio-Host auf dem Stream-PC
+
+Schlüssel und Einstellungen stehen in `.env` im Repo-Ordner (steht in `.gitignore`, kommt nie ins Repo). Vorlage:
+
+```
+cp .env_example .env      # dann die Schlüssel eintragen
+dotnet run --project studio/GtaStream.Studio
+```
+
+Gesetzte Umgebungsvariablen gehen vor, leere Werte zählen nicht. Ohne `ANTHROPIC_API_KEY` kommen die Texte aus
+Vorlagen, ohne ElevenLabs und Piper gibt es nur Untertitel.
+
+OBS: Quelle „Browser“, Adresse `http://127.0.0.1:7780/`, 1920 × 1080, Haken bei „Audio über OBS steuern“, dann
+hört der Stream die Stimme und der Lautstärkeregler in OBS gilt. Zum Ansehen im normalen Browser `/?debug` anhängen.
+Das Overlay zeigt, wer am Steuer ist, Spannung und Zielkurve, Banner zu jedem Eingriff und Untertitel zur Stimme.
+
+Stimme: ElevenLabs (Flash) in den Premium-Stunden (`GTASTREAM_TTS_PREMIUM_HOURS`, Standard 18-22 Uhr Ortszeit), sonst
+Piper lokal; fällt ElevenLabs aus, springt Piper ein. Höchstens alle 45 s ein Satz.
 
 ## Testserver einrichten
 

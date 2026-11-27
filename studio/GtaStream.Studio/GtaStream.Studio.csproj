@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -9,6 +9,11 @@
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="13.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The overlay page ships inside the program, so OBS finds it wherever the studio host runs from. -->
+    <EmbeddedResource Include="Overlay\overlay.html" LogicalName="overlay.html" />
   </ItemGroup>
 
 </Project>

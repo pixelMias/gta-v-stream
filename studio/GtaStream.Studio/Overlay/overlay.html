@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>GTA V Stream Overlay</title>
+<!-- OBS browser source, 1920x1080, transparent. Add ?debug to the address for a dark test background. -->
+<style>
+  :root {
+    --ok: #3ef08a; --accent: #36d6ff; --warn: #ffc94d; --bad: #ff4d6d; --surreal: #c08bff;
+    --panel: rgba(7, 17, 14, 0.82); --fg: #eafff4; --muted: #9fc3b5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; color: var(--fg);
+    font: 600 28px/1.25 system-ui, 'Segoe UI', sans-serif; }
+  body.debug { background: #24302c; }
+  .mono { font-family: ui-monospace, 'Cascadia Mono', Menlo, monospace; }
+
+  #mode { position: absolute; left: 40px; top: 36px; padding: 10px 22px; border-radius: 999px; background: var(--panel);
+    border: 3px solid var(--ok); color: var(--ok); font-size: 26px; letter-spacing: 0.04em; transition: all .3s; }
+  #mode.human { border-color: var(--warn); color: var(--warn); }
+  #mode.pause, #mode.lost { border-color: var(--bad); color: var(--bad); }
+
+  #pulse { position: absolute; right: 40px; top: 36px; width: 360px; padding: 14px 18px; border-radius: 14px; background: var(--panel); }
+  #pulse .row { display: flex; justify-content: space-between; font-size: 20px; color: var(--muted); }
+  #pulse .bar { position: relative; height: 12px; border-radius: 6px; background: rgba(255,255,255,.12); margin: 8px 0 4px; overflow: hidden; }
+  #pulse .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--ok), var(--warn), var(--bad)); transition: width .8s; }
+  #pulse .target { position: absolute; top: -3px; bottom: -3px; width: 4px; background: var(--fg); transition: left .8s; }
+
+  #banners { position: absolute; left: 50%; top: 120px; transform: translateX(-50%); width: 1100px; display: grid; gap: 14px; }
+  .banner { padding: 18px 28px; border-radius: 16px; background: var(--panel); border-left: 10px solid var(--accent);
+    font-size: 40px; text-align: center; animation: in .45s cubic-bezier(.2,1.4,.4,1) both; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  .banner.out { animation: out .4s ease-in both; }
+  .banner.helpful { border-color: var(--ok); } .banner.disruptive { border-color: var(--warn); }
+  .banner.chaotic { border-color: var(--bad); } .banner.surreal { border-color: var(--surreal); }
+  @keyframes in { from { opacity: 0; transform: translateY(-40px) scale(.9); } to { opacity: 1; transform: none; } }
+  @keyframes out { to { opacity: 0; transform: translateY(-20px); } }
+
+  #say { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); max-width: 1400px; padding: 14px 26px;
+    border-radius: 12px; background: rgba(0,0,0,.72); font-size: 34px; text-align: center; opacity: 0; transition: opacity .3s; }
+  #say.on { opacity: 1; }
+  #say::before { content: "KI: "; color: var(--ok); }
+</style>
+</head>
+<body>
+<div id="mode" class="mono">Verbinde …</div>
+<div id="pulse">
+  <div class="row"><span>Spannung</span><span id="queue">Warteschlange 0</span></div>
+  <div class="bar"><div class="fill" id="fill"></div><div class="target" id="target"></div></div>
+  <div class="row"><span id="phase">–</span><span id="tension">0</span></div>
+</div>
+<div id="banners"></div>
+<div id="say"></div>
+<script>
+  if (location.search.includes('debug')) document.body.classList.add('debug');
+  const $ = (id) => document.getElementById(id);
+  const MODES = { autopilot: ['KI am Steuer', ''], quiet: ['KI am Steuer', ''], copilot: ['Mensch am Steuer', 'human'], pause: ['Regie-Pause', 'pause'] };
+  const PHASES = { build_up: 'Aufbau', peak: 'Gipfel', breather: 'Atempause' };
+
+  // Banners one after another, each 5 s, at most 3 visible.
+  const bannerQueue = [];
+  let showing = 0;
+  function banner(text, category) { bannerQueue.push({ text, category }); pump(); }
+  function pump() {
+    while (showing < 3 && bannerQueue.length) {
+      const b = bannerQueue.shift();
+      const el = document.createElement('div');
+      el.className = 'banner ' + (b.category || '');
+      el.textContent = b.text;
+      $('banners').appendChild(el);
+      showing++;
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); showing--; pump(); }, 400); }, 5000);
+    }
+  }
+
+  // Voice: lines play one after another; the subtitle stays while the audio runs.
+  const sayQueue = [];
+  let speaking = false;
+  function say(text, audio) { sayQueue.push({ text, audio }); nextSay(); }
+  function nextSay() {
+    if (speaking || !sayQueue.length) return;
+    speaking = true;
+    const s = sayQueue.shift();
+    $('say').textContent = s.text;
+    $('say').classList.add('on');
+    const done = () => { $('say').classList.remove('on'); setTimeout(() => { speaking = false; nextSay(); }, 400); };
+    if (s.audio) {
+      const a = new Audio(s.audio);
+      a.onended = done; a.onerror = () => setTimeout(done, 4000);
+      a.play().catch(() => setTimeout(done, 4000));
+    } else setTimeout(done, Math.min(8000, 2500 + s.text.length * 45));
+  }
+
+  function status(s) {
+    const [label, cls] = !s.ebsConnected ? ['Signal verloren', 'lost'] : (MODES[s.mode] || MODES.autopilot);
+    $('mode').textContent = label;
+    $('mode').className = 'mono ' + cls;
+    $('fill').style.width = s.tension + '%';
+    $('target').style.left = `calc(${s.target}% - 2px)`;
+    $('tension').textContent = `${s.tension} / Ziel ${s.target}`;
+    $('phase').textContent = PHASES[s.phase] || s.phase;
+    $('queue').textContent = `Warteschlange ${s.queue}`;
+  }
+
+  let wait = 500;
+  function connect() {
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    ws.onopen = () => { wait = 500; };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'banner') banner(m.text, m.category);
+      else if (m.type === 'say') say(m.text, m.audio);
+      else if (m.type === 'status') status(m.status);
+    };
+    ws.onclose = () => { $('mode').textContent = 'Studio getrennt'; $('mode').className = 'mono lost'; setTimeout(connect, wait = Math.min(wait * 2, 5000)); };
+  }
+  connect();
+</script>
+</body>
+</html>
